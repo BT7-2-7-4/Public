@@ -1,0 +1,383 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>民国战争各军队测试</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family: -apple-system, BlinkMacSystemFont, "Microsoft YaHei", sans-serif;}
+body{background:#f5f3ef;color:#444;padding:14px;}
+.container{max-width:680px;margin:0 auto;}
+.start-page{text-align:center;margin-top:60px;padding:0 10px;}
+.start-page h1{font-size:24px;color:#555;margin-bottom:16px;}
+.start-page p{font-size:15px;line-height:1.6;color:#666;margin-bottom:28px;}
+.btn{background:#a09486;color:#fff;border:none;padding:12px 26px;border-radius:10px;font-size:16px;cursor:pointer;}
+.btn:active{opacity:0.9;}
+.quiz-card{background:#fff;border-radius:14px;padding:24px 20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:16px;display:none;}
+.quiz-card.active{display:block;}
+.quiz-num{font-size:14px;color:#888;margin-bottom:8px;}
+.quiz-title{font-size:17px;line-height:1.6;margin-bottom:24px;}
+.answer-group{display:flex;flex-direction:column;gap:11px;}
+.answer-btn{background:#f1eee9;border:1px solid #e6e3dc;border-radius:10px;padding:14px;text-align:center;cursor:pointer;}
+.answer-btn.selected{background:#a09486;color:#fff;}
+.btn-group{margin-top:20px;}
+.prev-btn{background:#d6d0c7;padding:10px 20px;font-size:14px;border-radius:8px;}
+.tip{color:#b86b5b;font-size:13px;margin-top:10px;display:none;}
+.tip.show{display:block;}
+.result-page{display:none;}
+.result-title{text-align:center;font-size:22px;color:#555;margin:20px 0;}
+.result-card{background:#fff;border-radius:14px;padding:20px;box-shadow:0 2px 10px rgba(0,0,0,0.05);margin-bottom:16px;}
+.result-card h3{font-size:17px;color:#555;margin-bottom:14px;border-left:4px solid #a09486;padding-left:10px;}
+.chart-box{height:280px;margin:16px 0;}
+.army-item{display:flex;align-items:center;padding:12px;background:#f8f6f2;border-radius:10px;margin-bottom:12px;}
+.army-icon{width:44px;height:44px;background:#a09486;border-radius:50%;color:#fff;display:flex;align-items:center;justify-content:center;font-weight:bold;margin-right:12px;}
+.match-tag{background:#e9e4dd;color:#555;padding:5px 9px;border-radius:6px;font-size:12px;margin-right:6px;display:inline-block;margin-bottom:6px;}
+.restart-btn{margin:30px auto;display:block;}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <div class="start-page" id="startPage">
+    <h1>民国战争各军队测试</h1>
+    <p>共60题（50道是非题 + 10道情景题）<br>测出你最适合的派系、军队与军衔职位</p>
+    <button class="btn" onclick="startQuiz()">开始测试</button>
+  </div>
+
+  <div id="quizWrapper"></div>
+  <div class="tip" id="tip">请先选择答案</div>
+
+  <div class="result-page" id="resultPage">
+    <h2 class="result-title">你的军队匹配结果</h2>
+    <div class="result-card">
+      <h3>📊 各派系适配度</h3>
+      <div class="chart-box"><canvas id="armyChart"></canvas></div>
+    </div>
+    <div class="result-card">
+      <h3>🎖️ 最适配军队</h3>
+      <div id="bestArmy"></div>
+    </div>
+    <div class="result-card">
+      <h3>📋 军衔职位推荐</h3>
+      <div id="rankResult"></div>
+    </div>
+    <div class="result-card">
+      <h3>📝 人格风格解读</h3>
+      <p id="personalityDesc" style="line-height:1.7;"></p>
+    </div>
+    <button class="btn restart-btn" onclick="restartQuiz()">重新测试</button>
+  </div>
+</div>
+
+<script>
+const armyTypes = [
+  {key:'gjj', name:'国民革命军', desc:'军纪严明、体系正规、重视正统秩序', color:'#a09486'},
+  {key:'gcd', name:'红军/八路军', desc:'信念坚定、朴素亲民、吃苦耐劳', color:'#b86b6b'},
+  {key:'difang', name:'地方军', desc:'扎根乡土、护佑乡里、务实自保、经营一方', color:'#8a9b7f'},
+  {key:'dongbei', name:'东北军', desc:'重情义、骁勇善战、乡土观念极强', color:'#7a9bbb'},
+  {key:'guixi', name:'桂系军队', desc:'团结强硬、执行力强、敢打敢拼', color:'#a17a9c'}
+];
+
+const questions = [
+  {id:1,type:'yn',text:'你做事更看重规则和纪律',score:{gjj:2, difang:-1}},
+  {id:2,type:'yn',text:'你愿意为集体牺牲个人享受',score:{gcd:2}},
+  {id:3,type:'yn',text:'你更信任同乡、熟人、自己人',score:{difang:3, dongbei:2}},
+  {id:4,type:'yn',text:'你性格强硬，不轻易服软',score:{guixi:2, dongbei:1}},
+  {id:5,type:'yn',text:'你重视名分、正统和合法性',score:{gjj:2}},
+  {id:6,type:'yn',text:'你生活简朴，不追求享受',score:{gcd:2}},
+  {id:7,type:'yn',text:'你优先考虑生存与实际利益',score:{difang:3}},
+  {id:8,type:'yn',text:'你重兄弟情义，愿意护着自己人',score:{dongbei:2, difang:2}},
+  {id:9,type:'yn',text:'你有坚定信念，不易动摇',score:{gcd:2, gjj:1}},
+  {id:10,type:'yn',text:'你重视内部团结，一致对外',score:{guixi:2, difang:1}},
+
+  {id:11,type:'yn',text:'你做事讲究制度流程',score:{gjj:2}},
+  {id:12,type:'yn',text:'你愿意亲近基层、体恤普通人',score:{gcd:2, difang:1}},
+  {id:13,type:'yn',text:'你善于保存实力，不盲目冒险',score:{difang:3}},
+  {id:14,type:'yn',text:'你性格直爽，不爱拐弯',score:{dongbei:2}},
+  {id:15,type:'yn',text:'你执行力强，说干就干',score:{guixi:2, gjj:1}},
+  {id:16,type:'yn',text:'你反感特权与不公',score:{gcd:2}},
+  {id:17,type:'yn',text:'你容易被人情关系影响判断',score:{difang:3, dongbei:1}},
+  {id:18,type:'yn',text:'你很看重荣誉与体面',score:{gjj:2}},
+  {id:19,type:'yn',text:'你能吃苦，抗压能力强',score:{gcd:2, guixi:1}},
+  {id:20,type:'yn',text:'你重视地盘、根基与老家',score:{difang:3}},
+
+  {id:21,type:'yn',text:'你喜欢有纪律、有组织的环境',score:{gjj:2}},
+  {id:22,type:'yn',text:'你愿意为长远目标忍耐当下',score:{gcd:2}},
+  {id:23,type:'yn',text:'你更相信本地势力与家族关系',score:{difang:3, dongbei:1}},
+  {id:24,type:'yn',text:'你作战勇猛，敢于冲锋',score:{dongbei:2, guixi:2}},
+  {id:25,type:'yn',text:'你反感内斗，重视团队凝聚力',score:{guixi:2, difang:1}},
+  {id:26,type:'yn',text:'你做事尽量公正，不偏袒过度',score:{gjj:1, gcd:2}},
+  {id:27,type:'yn',text:'你审时度势，懂得灵活变通',score:{difang:3}},
+  {id:28,type:'yn',text:'困境中你也不会轻易放弃',score:{gcd:2}},
+  {id:29,type:'yn',text:'你看重身份等级与秩序',score:{gjj:2}},
+  {id:30,type:'yn',text:'你有正义感，愿意保护弱小',score:{gcd:2, dongbei:1, difang:1}},
+
+  {id:31,type:'yn',text:'你做事稳健，不冲动',score:{gjj:1, difang:2}},
+  {id:32,type:'yn',text:'你善于团结大多数人',score:{gcd:2}},
+  {id:33,type:'yn',text:'你讲义气胜过死板规矩',score:{dongbei:2, guixi:1, difang:1}},
+  {id:34,type:'yn',text:'你习惯经营自己的势力范围',score:{difang:3}},
+  {id:35,type:'yn',text:'你有家国情怀',score:{gjj:2, gcd:2}},
+  {id:36,type:'yn',text:'你勤俭节约，不铺张',score:{gcd:2}},
+  {id:37,type:'yn',text:'你善于维护人脉与小圈子',score:{difang:3}},
+  {id:38,type:'yn',text:'你性格刚烈，不服输',score:{guixi:2, dongbei:1}},
+  {id:39,type:'yn',text:'你服从上级，不擅自行事',score:{gjj:2}},
+  {id:40,type:'yn',text:'你愿意和基层同甘共苦',score:{gcd:2, difang:1}},
+
+  {id:41,type:'yn',text:'你做事务实，不空谈理想',score:{difang:3}},
+  {id:42,type:'yn',text:'你重感情、念旧、记恩情',score:{dongbei:2, difang:2}},
+  {id:43,type:'yn',text:'你有强烈集体荣誉感',score:{guixi:2, gjj:1}},
+  {id:44,type:'yn',text:'你坚守原则，不随波逐流',score:{gcd:2}},
+  {id:45,type:'yn',text:'你重视军纪、军容、形象',score:{gjj:2}},
+  {id:46,type:'yn',text:'你善于在困境中找活路',score:{gcd:1, difang:2}},
+  {id:47,type:'yn',text:'你习惯抱团生存、抱团发展',score:{difang:3, dongbei:2}},
+  {id:48,type:'yn',text:'你做事果断，不犹豫',score:{guixi:2}},
+  {id:49,type:'yn',text:'你相信正规体系与官方秩序',score:{gjj:2}},
+  {id:50,type:'yn',text:'你愿意为信念坚持到底',score:{gcd:2}},
+
+  {id:51,type:'scene',text:'初识陌生人，你更倾向？',options:[
+    {text:'礼貌观察，保持距离',score:{gjj:2}},
+    {text:'亲和低调，融入群体',score:{gcd:2}},
+    {text:'先看对方来路，是否可靠',score:{difang:3}},
+    {text:'热情直接，快速拉关系',score:{dongbei:2}},
+    {text:'干脆利落，不拖泥带水',score:{guixi:2}}
+  ]},
+  {id:52,type:'scene',text:'你内心最在意的是？',options:[
+    {text:'正统、规矩、秩序',score:{gjj:2}},
+    {text:'理想、公平、民心',score:{gcd:2}},
+    {text:'老家安稳、自己人平安',score:{difang:3}},
+    {text:'兄弟情义、脸面尊严',score:{dongbei:2}},
+    {text:'团队强弱、能不能打赢',score:{guixi:2}}
+  ]},
+  {id:53,type:'scene',text:'团队遇到危机，你会？',options:[
+    {text:'按规矩稳住局面',score:{gjj:2}},
+    {text:'带头吃苦，鼓舞人心',score:{gcd:2}},
+    {text:'保全实力，以生存为先',score:{difang:3}},
+    {text:'硬扛到底，不丢气势',score:{dongbei:2, guixi:1}}
+  ]},
+  {id:54,type:'scene',text:'有人得罪你，你会？',options:[
+    {text:'讲道理，守规矩',score:{gjj:2}},
+    {text:'忍让包容，以和为贵',score:{gcd:1}},
+    {text:'记在心里，自保为先',score:{difang:3}},
+    {text:'当场回应，维护面子',score:{dongbei:2, guixi:2}}
+  ]},
+  {id:55,type:'scene',text:'分配利益好处时，你偏向？',options:[
+    {text:'按功劳公平分配',score:{gjj:2}},
+    {text:'照顾弱者和底层',score:{gcd:2}},
+    {text:'优先老乡、自己人',score:{difang:3}},
+    {text:'按能力和战斗力分配',score:{guixi:2}}
+  ]},
+  {id:56,type:'scene',text:'面对强敌，你的态度？',options:[
+    {text:'稳扎稳打，不冒进',score:{gjj:1}},
+    {text:'顽强抵抗，绝不投降',score:{gcd:2, guixi:2}},
+    {text:'能打就打，不能打则保存实力',score:{difang:3}},
+    {text:'勇猛迎战，不怕牺牲',score:{dongbei:2}}
+  ]},
+  {id:57,type:'scene',text:'你更欣赏怎样的领袖？',options:[
+    {text:'公正严明、守规矩',score:{gjj:2}},
+    {text:'亲民朴素、与民同心',score:{gcd:2}},
+    {text:'护着家乡、护着自己人',score:{difang:3}},
+    {text:'果敢强硬、能带队伍赢',score:{guixi:2}}
+  ]},
+  {id:58,type:'scene',text:'你做事的核心风格？',options:[
+    {text:'守秩序、重正统',score:{gjj:2}},
+    {text:'坚忍、朴素、为理想',score:{gcd:2}},
+    {text:'务实、乡土、重生存',score:{difang:3}},
+    {text:'勇猛、重情、敢打拼',score:{dongbei:1, guixi:2}}
+  ]},
+  {id:59,type:'scene',text:'上级决策明显有误，你会？',options:[
+    {text:'服从但委婉提醒',score:{gjj:2}},
+    {text:'从实际出发灵活调整',score:{gcd:1, difang:3}},
+    {text:'直言问题，不怕冒犯',score:{guixi:2, dongbei:1}},
+    {text:'默默减少损失',score:{gcd:1}}
+  ]},
+  {id:60,type:'scene',text:'你对未来的最大期望是？',options:[
+    {text:'天下安定、秩序井然',score:{gjj:2}},
+    {text:'人人平等、百姓安稳',score:{gcd:2}},
+    {text:'家乡太平、亲友无恙',score:{difang:3}},
+    {text:'队伍强大、受人敬重',score:{guixi:2}}
+  ]}
+];
+
+let currentQuestion = 0;
+let answers = {};
+
+function initQuiz() {
+  const wrap = document.getElementById('quizWrapper');
+  wrap.innerHTML = '';
+  questions.forEach((q, i) => {
+    const card = document.createElement('div');
+    card.className = 'quiz-card';
+    card.dataset.id = q.id;
+    let html = `<div class="quiz-num">第${i+1}/60题</div>`;
+    html += `<div class="quiz-title">${q.text}</div><div class="answer-group">`;
+    if (q.type === 'yn') {
+      html += `<div class="answer-btn" onclick="sel(${q.id},'yes')">是</div>`;
+      html += `<div class="answer-btn" onclick="sel(${q.id},'no')">否</div>`;
+    } else {
+      q.options.forEach((opt, j) => {
+        html += `<div class="answer-btn" onclick="sel(${q.id},${j})">${opt.text}</div>`;
+      });
+    }
+    html += `</div><div class="btn-group"><button class="btn prev-btn" onclick="goPrev()">上一题</button></div>`;
+    card.innerHTML = html;
+    wrap.appendChild(card);
+  });
+}
+
+function startQuiz() {
+  document.getElementById('startPage').style.display = 'none';
+  currentQuestion = 0;
+  answers = {};
+  showQuestion(currentQuestion);
+}
+
+function showQuestion(index) {
+  document.querySelectorAll('.quiz-card').forEach(c => c.classList.remove('active'));
+  document.querySelectorAll('.quiz-card')[index].classList.add('active');
+  document.getElementById('tip').classList.remove('show');
+}
+
+function sel(qid, value) {
+  answers[qid] = value;
+  const card = document.querySelector(`.quiz-card[data-id="${qid}"]`);
+  const btns = card.querySelectorAll('.answer-btn');
+  btns.forEach(b => b.classList.remove('selected'));
+  btns.forEach(b => {
+    if ((value === 'yes' && b.textContent === '是') || (value === 'no' && b.textContent === '否')) {
+      b.classList.add('selected');
+    }
+  });
+  const q = questions.find(x => x.id === qid);
+  if (q.type === 'scene') {
+    q.options.forEach((opt, j) => {
+      if (j === value) {
+        btns.forEach(b => b.textContent.trim() === opt.text && b.classList.add('selected'));
+      }
+    });
+  }
+  setTimeout(goNext, 300);
+}
+
+function goNext() {
+  const currentQ = questions[currentQuestion];
+  if (!answers[currentQ.id]) {
+    document.getElementById('tip').classList.add('show');
+    return;
+  }
+  if (currentQuestion < questions.length - 1) {
+    currentQuestion++;
+    showQuestion(currentQuestion);
+  } else {
+    calculateResult();
+  }
+}
+
+function goPrev() {
+  if (currentQuestion > 0) {
+    currentQuestion--;
+    showQuestion(currentQuestion);
+  }
+}
+
+function calculateResult() {
+  let score = {gjj:0, gcd:0, difang:0, dongbei:0, guixi:0};
+  questions.forEach(q => {
+    const ans = answers[q.id];
+    if (ans === undefined) return;
+    if (q.type === 'yn') {
+      if (ans === 'yes') {
+        for (let k in q.score) score[k] += q.score[k];
+      }
+    } else {
+      const opt = q.options[ans];
+      for (let k in opt.score) score[k] += opt.score[k];
+    }
+  });
+  const total = Math.max(1, Object.values(score).reduce((a,b)=>a+b,0));
+  const result = armyTypes.map(item => {
+    let percent = Math.round((score[item.key] / total) * 100);
+    percent = Math.max(percent, 5);
+    return {...item, percent};
+  }).sort((a,b) => b.percent - a.percent);
+  renderResult(result);
+}
+
+function renderResult(result) {
+  document.querySelectorAll('.quiz-card').forEach(c => c.style.display = 'none');
+  document.getElementById('resultPage').style.display = 'block';
+
+  const ctx = document.getElementById('armyChart').getContext('2d');
+  new Chart(ctx, {
+    type:'bar',
+    data:{
+      labels: result.map(i => i.name),
+      datasets:[{
+        data: result.map(i => i.percent),
+        backgroundColor: result.map(i => i.color),
+        borderRadius: 8
+      }]
+    },
+    options:{
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {legend: {display: false}},
+      scales: {y: {beginAtZero: true, max: 100}}
+    }
+  });
+
+  const best = result[0];
+  document.getElementById('bestArmy').innerHTML = `
+  <div class="army-item">
+    <div class="army-icon">军</div>
+    <div>
+      <div><strong>${best.name}</strong></div>
+      <div style="font-size:13px;color:#666;margin-top:4px;">${best.desc}</div>
+      <div style="margin-top:6px;">适配度：${best.percent}%</div>
+    </div>
+  </div>`;
+
+  let rankHTML = '';
+  if (best.key === 'gjj') {
+    rankHTML = `
+      <span class="match-tag">正规军官</span><span class="match-tag">参谋</span><span class="match-tag">政战干部</span>
+      <p style="margin-top:10px;">作风严谨、守秩序、重规则，适合体系完善的正规军指挥与管理岗位。</p>`;
+  } else if (best.key === 'gcd') {
+    rankHTML = `
+      <span class="match-tag">政工干部</span><span class="match-tag">基层指导员</span><span class="match-tag">群众工作</span>
+      <p style="margin-top:10px;">信念坚定、能吃苦、善团结，适合政治工作与基层带兵。</p>`;
+  } else if (best.key === 'difang') {
+    rankHTML = `
+      <span class="match-tag">地方守备官</span><span class="match-tag">乡团首领</span><span class="match-tag">地方实权中层</span>
+      <p style="margin-top:10px;">务实稳重、重乡土、护乡亲，擅长镇守一方、保境安民、经营地方势力。</p>`;
+  } else if (best.key === 'dongbei') {
+    rankHTML = `
+      <span class="match-tag">前线作战官</span><span class="match-tag">带兵将领</span><span class="match-tag">义气型军官</span>
+      <p style="margin-top:10px;">勇猛重情义，适合前线冲锋、带队作战，凝聚力极强。</p>`;
+  } else {
+    rankHTML = `
+      <span class="match-tag">主力指挥官</span><span class="match-tag">精锐部队长</span><span class="match-tag">战斗骨干</span>
+      <p style="margin-top:10px;">刚毅果决、执行力强，适合攻坚作战、主力带队。</p>`;
+  }
+  document.getElementById('rankResult').innerHTML = rankHTML;
+
+  let desc = '';
+  if (best.key === 'gjj') desc = '你稳重守序，重视规则与公平，行事正统，适合在成熟正规体系中担当大局。';
+  else if (best.key === 'gcd') desc = '你坚定朴素，有正义感与同理心，吃苦耐劳，韧性极强，擅长凝聚人心。';
+  else if (best.key === 'difang') desc = '你务实理性，重乡情、护乡亲，做事以生存和安稳为先，擅长守土一方、经营人脉与地盘，适应力极强。';
+  else if (best.key === 'dongbei') desc = '你直爽豪迈、重情重义，敢作敢当，护短讲义气，作战风格勇猛直接。';
+  else desc = '你刚毅果决，执行力极强，重视团队荣誉，敢打敢拼，适合带领队伍攻坚克难。';
+  document.getElementById('personalityDesc').textContent = desc;
+}
+
+function restartQuiz() {
+  currentQuestion = 0;
+  answers = {};
+  document.getElementById('resultPage').style.display = 'none';
+  document.getElementById('startPage').style.display = 'block';
+}
+
+window.onload = initQuiz;
+</script>
+</body>
+</html>
